@@ -1,0 +1,25 @@
+#include <Servo.h>
+double Delay=100; // Equal Delay for every action so the motor does not overshoot.
+Servo myServo;
+
+
+
+void setup() {
+  myServo.attach(2);
+
+}
+
+void loop() {
+
+  myServo.write(9);          // simple timer to check the movement of the grabber.
+  delay(Delay);              // delay is the same between each movement 
+  myServo.write(90);
+  delay(Delay);
+  myServo.write(180);
+  delay(Delay);
+  myServo.write(90);
+  delay(5000);
+  
+
+ 
+}
