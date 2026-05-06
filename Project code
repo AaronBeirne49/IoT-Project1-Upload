@@ -1,25 +1,124 @@
+
+
+#define BLYNK_PRINT Serial
+#define BLYNK_TEMPLATE_ID "TMPL4HKK1c1x9"
+#define BLYNK_TEMPLATE_NAME "Smart Lock"
+#define BLYNK_AUTH_TOKEN "QY_NJ9lPyCEJDjygJhGskDvIc0Jdbnl5"
+
+#include <SPI.h>
+#include <WiFiS3.h>
+#include <BlynkSimpleWifi.h>
 #include <Servo.h>
-double Delay=100; // Equal Delay for every action so the motor does not overshoot.
-Servo myServo;
 
+/* WiFi credentials */
+char ssid[] = "DOORBELL"; //Ran from my phones hotspot during demonstrations but can run from any network.
+char pass[] = "12345678";
 
+/* =======================
+        LOCK SYSTEM 
+   ======================= */
+#define SERVO_PIN 9
+#define STOPPED 90
+#define LOCKED_POS 180
+#define UNLOCKED_POS 0
+#define DELAY 5000
 
-void setup() {
-  myServo.attach(2);
+Servo lockServo;
 
+/* =======================
+   DOORBELL DEBUG SYSTEM
+   ======================= */
+#define DOORBELL_PIN 2
+bool doorbellHandled = false;
+
+/* NEW: cooldown timer */
+unsigned long lastPress = 0;
+const unsigned long cooldownTime = 1000; // 1 seconds
+
+/* =======================
+            SETUP
+   ======================= */
+void setup()
+{
+  Serial.begin(9600);
+  delay(1000);
+
+  Serial.println("Booting...");
+
+  lockServo.attach(SERVO_PIN);
+
+  pinMode(DOORBELL_PIN, INPUT_PULLUP);
+  Serial.println("Doorbell pin set");
+
+  Serial.println("Connecting to Blynk...");
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  Serial.println("System ready");
 }
 
-void loop() {
+/* =======================
+   CONFIRM REAL CONNECTION
+   ======================= */
+BLYNK_CONNECTED()
+{
+  Serial.println(">>> Blynk connection established");
+}
 
-  myServo.write(9);          // simple timer to check the movement of the grabber.
-  delay(Delay);              // delay is the same between each movement 
-  myServo.write(90);
-  delay(Delay);
-  myServo.write(180);
-  delay(Delay);
-  myServo.write(90);
-  delay(5000);
-  
+/* =======================
+   MAIN LOOP
+   ======================= */
+void loop()
+{
+  Blynk.run();
 
- 
+  int doorbellState = digitalRead(DOORBELL_PIN);
+
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 500)
+  {
+    Serial.print("Doorbell pin state: ");
+    Serial.println(doorbellState == HIGH ? "HIGH" : "LOW");
+    lastPrint = millis();
+  }
+
+  // ✅ UPDATED LOGIC WITH COOLDOWN
+  if (doorbellState == LOW && !doorbellHandled && millis() - lastPress > cooldownTime)
+  {
+    Serial.println(">>> Doorbell PRESS detected");
+    Serial.println("Sending notification to Blynk...");
+
+    Blynk.logEvent("doorbell_pressed", "Someone is at the door");
+
+    doorbellHandled = true;
+    lastPress = millis();
+  }
+
+  if (doorbellState == HIGH && doorbellHandled)
+  {
+    Serial.println(">>> Doorbell released");
+    doorbellHandled = false;
+  }
+}
+
+/* =======================
+   LOCK CONTROL
+   ======================= */
+BLYNK_WRITE(V0)
+{
+  int buttonState = param.asInt();
+
+  if (buttonState == 1)
+  {
+    lockServo.write(UNLOCKED_POS);
+    delay(DELAY);
+    lockServo.write(STOPPED);
+    Serial.println("Door UNLOCKED");
+  }
+  else
+  {
+    lockServo.write(LOCKED_POS);
+    delay(DELAY);
+    lockServo.write(STOPPED);
+    Serial.println("Door LOCKED");
+  }
 }
